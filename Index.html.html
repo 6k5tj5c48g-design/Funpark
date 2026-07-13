@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="de">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Funpark 3D Deluxe – Baue & fahre deine eigene Achterbahn</title>
+<style>
+  :root{
+    --wood:#7a4a2b; --cream:#fff6e3; --red:#d63e3e; --teal:#1e8f8a;
+    --gold:#f2b632; --ink:#2b2118;
+  }
+  *{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent;}
+  html,body{width:100%;height:100%;overflow:hidden;font-family:Verdana,Geneva,sans-serif;background:#0d1b12;}
+  #scene{position:absolute;inset:0;display:block;touch-action:none;}
+
+  /* Kopfleiste im Ticket-Stil */
+  #topbar{position:absolute;top:10px;left:50%;transform:translateX(-50%);display:flex;z-index:10;
+    filter:drop-shadow(0 4px 8px rgba(0,0,0,.35));}
+  .ticket{background:var(--cream);color:var(--ink);padding:7px 14px;display:flex;flex-direction:column;
+    align-items:center;justify-content:center;border-top:3px solid var(--red);border-bottom:3px solid var(--red);min-width:88px;}
+  .ticket:first-child{border-radius:12px 0 0 12px;border-left:3px solid var(--red);}
+  .ticket:last-child{border-radius:0 12px 12px 0;border-right:3px solid var(--red);}
+  .ticket + .ticket{border-left:2px dashed rgba(43,33,24,.35);}
+  .ticket .lbl{font-size:9px;letter-spacing:1.5px;text-transform:uppercase;opacity:.65;}
+  .ticket .val{font-size:17px;font-weight:bold;font-variant-numeric:tabular-nums;}
+  .ticket .val.money{color:#1c7a3d;}
+
+  /* Baukasten */
+  #toolbar{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);display:flex;gap:8px;z-index:10;
+    padding:10px;background:linear-gradient(#8a5433,var(--wood));border-radius:16px;border:2px solid #5d371d;
+    box-shadow:0 6px 16px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.18);max-width:96vw;overflow-x:auto;}
+  .tool{background:var(--cream);border:2px solid #d8c9a8;border-radius:12px;width:74px;min-width:74px;
+    padding:6px 4px 5px;cursor:pointer;text-align:center;color:var(--ink);transition:transform .12s;user-select:none;font-family:inherit;}
+  .tool:hover{transform:translateY(-3px);}
+  .tool.active{border-color:var(--gold);box-shadow:0 0 0 3px var(--gold);}
+  .tool .icon{font-size:24px;line-height:1.2;}
+  .tool .name{font-size:9px;font-weight:bold;margin-top:2px;}
+  .tool .price{font-size:9px;color:#1c7a3d;font-weight:bold;}
+  .tool.disabled{opacity:.45;cursor:not-allowed;}
+
+  /* Strecken-Editor-Panel */
+  #builderPanel{position:absolute;bottom:12px;left:50%;transform:translateX(-50%);z-index:12;display:none;
+    background:linear-gradient(#8a5433,var(--wood));border:2px solid #5d371d;border-radius:16px;padding:12px 16px;
+    color:var(--cream);box-shadow:0 6px 16px rgba(0,0,0,.45), inset 0 2px 0 rgba(255,255,255,.18);
+    width:min(480px,94vw);}
+  #builderPanel h3{font-size:13px;color:var(--gold);margin-bottom:6px;letter-spacing:1px;}
+  #builderPanel .row{display:flex;align-items:center;gap:10px;margin:8px 0;flex-wrap:wrap;}
+  #builderPanel label{font-size:11px;white-space:nowrap;}
+  #heightSlider{flex:1;min-width:120px;accent-color:var(--gold);}
+  #heightVal{font-weight:bold;color:var(--gold);min-width:44px;font-size:13px;}
+  .bBtn{font-family:inherit;font-size:12px;font-weight:bold;border-radius:10px;padding:9px 14px;cursor:pointer;border:2px solid #fff;}
+  .bBtn.green{background:#1c7a3d;color:#fff;}
+  .bBtn.grey{background:#6b6156;color:#fff;}
+  .bBtn.redb{background:var(--red);color:#fff;}
+  .bBtn:disabled{opacity:.5;cursor:not-allowed;}
+  #builderInfo{font-size:11px;opacity:.9;}
+
+  /* Mitfahren */
+  #rideBtn{position:absolute;right:16px;bottom:130px;z-index:10;display:none;
+    background:radial-gradient(circle at 30% 25%, #ff7a6b, var(--red) 70%);color:#fff;border:3px solid #fff;
+    border-radius:50%;width:92px;height:92px;cursor:pointer;font-family:inherit;font-size:12px;font-weight:bold;line-height:1.25;
+    box-shadow:0 0 0 4px var(--red), 0 8px 20px rgba(0,0,0,.5);animation:pulse 2.2s ease-in-out infinite;}
+  #rideBtn span{font-size:24px;display:block;}
+  @keyframes pulse{0%,100%{transform:scale(1);}50%{transform:scale(1.06);}}
+  @media (prefers-reduced-motion: reduce){#rideBtn{animation:none;}}
+  #exitRide{position:absolute;top:14px;right:14px;z-index:20;display:none;background:var(--cream);color:var(--ink);
+    border:2px solid var(--red);border-radius:10px;padding:10px 16px;font-family:inherit;font-weight:bold;cursor:pointer;font-size:13px;}
+  #speedo{position:absolute;bottom:20px;left:50%;transform:translateX(-50%);z-index:20;display:none;
+    background:rgba(20,14,8,.8);color:var(--gold);font-weight:bold;font-size:20px;padding:8px 22px;border-radius:24px;
+    font-variant-numeric:tabular-nums;border:2px solid var(--gold);}
+
+  /* Speichern */
+  #saveBtn{position:absolute;top:10px;right:14px;z-index:10;background:var(--cream);color:var(--ink);
+    border:2px solid var(--teal);border-radius:10px;padding:8px 12px;font-family:inherit;font-weight:bold;cursor:pointer;font-size:12px;}
+
+  #hint{position:absolute;bottom:122px;left:50%;transform:translateX(-50%);background:rgba(20,14,8,.82);
+    color:var(--cream);z-index:9;padding:8px 16px;border-radius:20px;font-size:12px;max-width:88vw;text-align:center;
+    pointer-events:none;transition:opacity .4s;}
+  #toast{position:absolute;top:70px;left:50%;transform:translateX(-50%);z-index:15;background:var(--gold);color:var(--ink);
+    font-weight:bold;font-size:13px;padding:8px 18px;border-radius:20px;opacity:0;transition:opacity .3s;pointer-events:none;
+    box-shadow:0 4px 12px rgba(0,0,0,.4);}
+
+  /* Startschild */
+  #splash{position:absolute;inset:0;z-index:30;display:flex;align-items:center;justify-content:center;
+    background:rgba(10,20,12,.66);backdrop-filter:blur(3px);}
+  #splash .sign{background:linear-gradient(#8a5433,var(--wood));border:4px solid #5d371d;border-radius:20px;
+    padding:26px 32px;text-align:center;color:var(--cream);max-width:440px;width:90vw;
+    box-shadow:0 20px 60px rgba(0,0,0,.6), inset 0 3px 0 rgba(255,255,255,.2);}
+  #splash h1{font-size:28px;letter-spacing:2px;color:var(--gold);text-shadow:2px 2px 0 #5d371d;}
+  #splash .sub{font-size:11px;letter-spacing:3px;color:#ffdca3;margin-bottom:6px;}
+  #splash p{font-size:12px;line-height:1.55;margin:10px 0;}
+  #splash .bulbs{letter-spacing:6px;color:var(--gold);font-size:14px;}
+  .startB{margin:6px 4px 0;background:var(--red);color:#fff;border:2px solid #fff;border-radius:12px;
+    padding:11px 22px;font-family:inherit;font-size:14px;font-weight:bold;cursor:pointer;box-shadow:0 5px 0 #932525;}
+  .startB.alt{background:var(--teal);box-shadow:0 5px 0 #12615d;}
+  .startB:active{transform:translateY(3px);box-shadow:none;}
+  button:focus-visible,.tool:focus-visible{outline:3px solid var(--gold);outline-offset:2px;}
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div id="topbar" aria-live="polite">
+  <div class="ticket"><div class="lbl">Kasse</div><div class="val money" id="uiMoney">–</div></div>
+  <div class="ticket"><div class="lbl">Besucher</div><div class="val" id="uiGuests">0</div></div>
+  <div class="ticket"><div class="lbl">Einnahmen</div><div class="val" id="uiIncome">+0 €/s</div></div>
+</div>
+
+<button id="saveBtn" title="Park speichern">💾 Speichern</button>
+<div id="toast" role="status"></div>
+<div id="hint">Wähle unten eine Attraktion und tippe auf die Wiese, um sie zu bauen.</div>
+
+<div id="toolbar" role="toolbar" aria-label="Baukasten"></div>
+
+<div id="builderPanel">
+  <h3>🛠️ STRECKEN-EDITOR</h3>
+  <div class="row">
+    <label for="heightSlider">Höhe des nächsten Punkts:</label>
+    <input type="range" id="heightSlider" min="1" max="14" step="0.5" value="4">
+    <span id="heightVal">4,0 m</span>
+  </div>
+  <div class="row">
+    <button class="bBtn grey" id="undoPoint">↩ Punkt löschen</button>
+    <button class="bBtn redb" id="cancelTrack">✕ Abbrechen</button>
+    <button class="bBtn green" id="finishTrack" disabled>Strecke bauen</button>
+  </div>
+  <div class="row"><span id="builderInfo">Tippe auf die Wiese, um Streckenpunkte zu setzen (mind. 4). Die Bahn wird automatisch zum Kreis geschlossen.</span></div>
+</div>
+
+<button id="rideBtn" aria-label="In der Achterbahn mitfahren"><span>🎢</span>MIT-<br>FAHREN!</button>
+<button id="exitRide">✕ Aussteigen</button>
+<div id="speedo">0 km/h</div>
+
+<div id="splash">
+  <div class="sign">
+    <div class="bulbs">• • • • • • • • • •</div>
+    <div class="sub">★ DELUXE ★</div>
+    <h1>FUNPARK 3D</h1>
+    <p>Baue deinen Park, entwirf deine <b>eigene Achterbahn-Strecke</b> Punkt für Punkt in 3D – und fahre dann selbst mit!</p>
+    <p style="font-size:10px;opacity:.85">🖱️ Ziehen = Kamera · Scrollen/2 Finger = Zoom · 👆 Tippen = Bauen</p>
+    <div class="bulbs">• • • • • • • • • •</div>
+    <div id="splashBtns"><button class="startB" id="startNew">Neuer Park</button></div>
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+(function(){
+"use strict";
+
+/* ============ Renderer, Szene, Kamera ============ */
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({canvas, antialias:true});
+renderer.setPixelRatio(Math.min(window.devicePixelRatio,2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+
+const scene = new THREE.Scene();
+scene.background = new THREE.Color(0x9fd8ef);
+scene.fog = new THREE.Fog(0x9fd8ef, 70, 180);
+
+const camera = new THREE.PerspectiveCamera(55, 1, 0.1, 500);
+const cam = { theta: Math.PI*0.25, phi: Math.PI*0.32, dist: 44, target: new THREE.Vector3(0,0,0) };
+function applyCamera(){
+  const sp = Math.sin(cam.phi), cp = Math.cos(cam.phi);
+  camera.position.set(
+    cam.target.x + cam.dist*sp*Math.cos(cam.theta),
+    cam.target.y + cam.dist*cp,
+    cam.target.z + cam.dist*sp*Math.sin(cam.theta));
+  camera.lookAt(cam.target);
+}
+
+scene.add(new THREE.HemisphereLight(0xcfe8ff, 0x557a3a, 0.85));
+const sun = new THREE.DirectionalLight(0xfff2d0, 1.05);
+sun.position.set(30,45,18); sun.castShadow = true;
+sun.shadow.mapSize.set(2048,2048);
+sun.shadow.camera.left=-50; sun.shadow.camera.right=50;
+sun.shadow.camera.top=50; sun.shadow.camera.bottom=-50;
+scene.add(sun);
+
+/* ============ Gelände ============ */
+const PARK = 64;
+const ground = new THREE.Mesh(new THREE.PlaneGeometry(PARK,PARK), new THREE.MeshLambertMaterial({color:0x79b74a}));
+ground.rotation.x=-Math.PI/2; ground.receiveShadow=true; scene.add(ground);
+const outer = new THREE.Mesh(new THREE.PlaneGeometry(420,420), new THREE.MeshLambertMaterial({color:0x5c8f3c}));
+outer.rotation.x=-Math.PI/2; outer.position.y=-0.05; scene.add(outer);
+
+(function fence(){
+  const mat = new THREE.MeshLambertMaterial({color:0xfff6e3});
+  const postGeo = new THREE.BoxGeometry(0.25,1.4,0.25);
+  const half = PARK/2;
+  for(let s=0;s<4;s++) for(let i=-half;i<=half;i+=3){
+    const post = new THREE.Mesh(postGeo, mat);
+    if(s===0) post.position.set(i,0.7,-half);
+    if(s===1) post.position.set(i,0.7, half);
+    if(s===2) post.position.set(-half,0.7,i);
+    if(s===3) post.position.set( half,0.7,i);
+    scene.add(post);
+  }
+})();
+(function paths(){
+  const mat = new THREE.MeshLambertMaterial({color:0xcdb98f});
+  const p1 = new THREE.Mesh(new THREE.PlaneGeometry(4.2,PARK), mat);
+  p1.rotation.x=-Math.PI/2; p1.position.y=0.02; p1.receiveShadow=true; scene.add(p1);
+  const p2 = new THREE.Mesh(new THREE.PlaneGeometry(PARK,4.2), mat);
+  p2.rotation.x=-Math.PI/2; p2.position.y=0.02; p2.receiveShadow=true; scene.add(p2);
+})();
+(function gate(){
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({color:0xd63e3e});
+  const l = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.35,5), mat); l.position.set(-3,2.5,0); l.castShadow=true;
+  const r = l.clone(); r.position.x=3;
+  const top = new THREE.Mesh(new THREE.BoxGeometry(7.4,1.2,0.7), new THREE.MeshLambertMaterial({color:0xf2b632}));
+  top.position.y=5.2; top.castShadow=true;
+  g.add(l,r,top); g.position.set(0,0,PARK/2); scene.add(g);
+})();
+
+function makeTree(){
+  const g = new THREE.Group();
+  const trunk = new THREE.Mesh(new THREE.CylinderGeometry(0.18,0.26,1.1,6), new THREE.MeshLambertMaterial({color:0x6e4a2b}));
+  trunk.position.y=0.55; trunk.castShadow=true;
+  const c1 = new THREE.Mesh(new THREE.ConeGeometry(1.1,2.2,7), new THREE.MeshLambertMaterial({color:0x2f7d3a}));
+  c1.position.y=2.1; c1.castShadow=true;
+  const c2 = new THREE.Mesh(new THREE.ConeGeometry(0.85,1.7,7), new THREE.MeshLambertMaterial({color:0x3c9448}));
+  c2.position.y=2.9; c2.castShadow=true;
+  g.add(trunk,c1,c2); return g;
+}
+for(let i=0;i<24;i++){
+  const t=makeTree(); let x,z;
+  do{ x=(Math.random()-0.5)*(PARK-6); z=(Math.random()-0.5)*(PARK-6);}while(Math.abs(x)<3.5||Math.abs(z)<3.5);
+  t.position.set(x,0,z); t.rotation.y=Math.random()*6.28;
+  const s=0.8+Math.random()*0.7; t.scale.set(s,s,s); scene.add(t);
+}
+
+/* ============ Fahrgeschäfte ============ */
+const animated = [];
+const attractions = [];
+
+function makeCarousel(){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(2.6,2.8,0.4,16), new THREE.MeshLambertMaterial({color:0xd63e3e}));
+  base.position.y=0.2; base.castShadow=true; g.add(base);
+  const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.15,0.15,3.4,8), new THREE.MeshLambertMaterial({color:0xf2b632}));
+  pole.position.y=2; g.add(pole);
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(3,1.3,16), new THREE.MeshLambertMaterial({color:0xf2b632}));
+  roof.position.y=4; roof.castShadow=true; g.add(roof);
+  const spinner = new THREE.Group();
+  const cols=[0xffffff,0x8fd3ff,0xffb0c9,0xc9a5ff];
+  for(let i=0;i<6;i++){
+    const a=i/6*Math.PI*2;
+    const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,2.4,6), new THREE.MeshLambertMaterial({color:0xeeeeee}));
+    rod.position.set(Math.cos(a)*1.9,2.1,Math.sin(a)*1.9);
+    const horse = new THREE.Mesh(new THREE.BoxGeometry(0.42,0.5,0.9), new THREE.MeshLambertMaterial({color:cols[i%4]}));
+    horse.position.set(Math.cos(a)*1.9,1.35,Math.sin(a)*1.9);
+    horse.rotation.y=-a; horse.castShadow=true;
+    horse.userData={baseY:1.35, phase:a*2};
+    spinner.add(rod,horse);
+  }
+  g.add(spinner);
+  animated.push({update(dt,t){
+    spinner.rotation.y += dt*0.7;
+    spinner.children.forEach(c=>{ if(c.userData.baseY) c.position.y=c.userData.baseY+Math.sin(t*2.4+c.userData.phase)*0.18;});
+  }});
+  return {mesh:g, radius:3.4};
+}
+
+function makeFerris(){
+  const g = new THREE.Group();
+  const mat = new THREE.MeshLambertMaterial({color:0x1e8f8a});
+  for(const s of [-1,1]){
+    const l1 = new THREE.Mesh(new THREE.CylinderGeometry(0.14,0.14,6.4,8), mat);
+    l1.position.set(s*0.9,3,1.2); l1.rotation.x=-0.36; l1.castShadow=true;
+    const l2 = l1.clone(); l2.position.z=-1.2; l2.rotation.x=0.36;
+    g.add(l1,l2);
+  }
+  const wheel = new THREE.Group();
+  wheel.add(new THREE.Mesh(new THREE.TorusGeometry(3.4,0.1,10,40), mat));
+  const cols=[0xd63e3e,0xf2b632,0x8fd3ff,0xffffff], gons=[];
+  for(let i=0;i<8;i++){
+    const a=i/8*Math.PI*2;
+    const spoke = new THREE.Mesh(new THREE.CylinderGeometry(0.05,0.05,3.4,6), mat);
+    spoke.position.set(Math.cos(a)*1.7,Math.sin(a)*1.7,0); spoke.rotation.z=a+Math.PI/2;
+    wheel.add(spoke);
+    const gon = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.6,0.7), new THREE.MeshLambertMaterial({color:cols[i%4]}));
+    gon.castShadow=true; wheel.add(gon); gons.push({m:gon,a});
+  }
+  wheel.position.y=5.6; g.add(wheel);
+  animated.push({update(dt){
+    wheel.rotation.z += dt*0.28;
+    gons.forEach(o=>{
+      const a=o.a+wheel.rotation.z;
+      o.m.position.set(Math.cos(a)*3.4, Math.sin(a)*3.4-0.45, 0);
+      o.m.rotation.z=-wheel.rotation.z;
+    });
+  }});
+  return {mesh:g, radius:3.2};
+}
+
+function makeDropTower(){
+  const g = new THREE.Group();
+  const tower = new THREE.Mesh(new THREE.CylinderGeometry(0.35,0.45,12,8), new THREE.MeshLambertMaterial({color:0xf2b632}));
+  tower.position.y=6; tower.castShadow=true; g.add(tower);
+  const top = new THREE.Mesh(new THREE.SphereGeometry(0.7,10,10), new THREE.MeshLambertMaterial({color:0xd63e3e}));
+  top.position.y=12.2; g.add(top);
+  const ring = new THREE.Group();
+  const seat = new THREE.Mesh(new THREE.TorusGeometry(1.1,0.35,8,16), new THREE.MeshLambertMaterial({color:0x1e8f8a}));
+  seat.rotation.x=Math.PI/2; ring.add(seat);
+  ring.position.y=2; g.add(ring);
+  let phase=0;
+  animated.push({update(dt){
+    phase += dt;
+    const c = phase % 8;
+    let y;
+    if(c<3.2) y = 1.5 + (c/3.2)*9;              // hochfahren
+    else if(c<3.9) y = 10.5;                     // warten
+    else if(c<4.5) y = 10.5 - ((c-3.9)/0.6)*9;  // FALL!
+    else y = 1.5;                                // unten
+    ring.position.y = y;
+  }});
+  return {mesh:g, radius:2.4};
+}
+
+function makeTeacups(){
+  const g = new THREE.Group();
+  const base = new THREE.Mesh(new THREE.CylinderGeometry(3.1,3.3,0.35,18), new THREE.MeshLambertMaterial({color:0x8fd3ff}));
+  base.position.y=0.18; base.castShadow=true; g.add(base);
+  const plate = new THREE.Group();
+  const cols=[0xd63e3e,0xf2b632,0xffb0c9,0x1e8f8a];
+  const cups=[];
+  for(let i=0;i<4;i++){
+    const a=i/4*Math.PI*2;
+    const cup = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.CylinderGeometry(0.75,0.5,0.7,12), new THREE.MeshLambertMaterial({color:cols[i]}));
+    body.position.y=0.75; body.castShadow=true;
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.3,0.08,8,12), new THREE.MeshLambertMaterial({color:cols[i]}));
+    handle.position.set(0.85,0.8,0);
+    cup.add(body,handle);
+    cup.position.set(Math.cos(a)*1.9,0.35,Math.sin(a)*1.9);
+    plate.add(cup); cups.push(cup);
+  }
+  g.add(plate);
+  animated.push({update(dt){
+    plate.rotation.y += dt*0.6;
+    cups.forEach((c,i)=>c.rotation.y += dt*(1.8+i*0.4));
+  }});
+  return {mesh:g, radius:3.6};
+}
+
+function makeSnack(){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.BoxGeometry(2.4,1.6,1.8), new THREE.MeshLambertMaterial({color:0xfff6e3}));
+  body.position.y=0.8; body.castShadow=true;
+  const roof = new THREE.Mesh(new THREE.ConeGeometry(2,0.9,4), new THREE.MeshLambertMaterial({color:0xd63e3e}));
+  roof.position.y=2.05; roof.rotation.y=Math.PI/4; roof.castShadow=true;
+  const sign = new THREE.Mesh(new THREE.BoxGeometry(1.8,0.4,0.1), new THREE.MeshLambertMaterial({color:0xf2b632}));
+  sign.position.set(0,1.35,0.95);
+  g.add(body,roof,sign);
+  return {mesh:g, radius:2.0};
+}
+
+/* ============ Achterbahnen (beliebig viele, auch selbst gebaut) ============ */
+const coasters = [];
+
+function buildCoasterFromPoints(worldPts){
+  // worldPts: Array von {x,y,z} in Weltkoordinaten (y = Schienenhöhe)
+  const pts = worldPts.map(p=>new THREE.Vector3(p.x,p.y,p.z));
+  const curve = new THREE.CatmullRomCurve3(pts, true, 'catmullrom', 0.55);
+  const g = new THREE.Group();
+  const N = 240;
+  const frames = curve.computeFrenetFrames(N, true);
+
+  function rail(offset){
+    const rp=[];
+    for(let i=0;i<=N;i++){
+      const t=i/N;
+      const p = curve.getPointAt(t);
+      const b = frames.binormals[Math.min(i,N-1)].clone();
+      rp.push(p.clone().add(b.multiplyScalar(offset)));
+    }
+    return new THREE.Mesh(
+      new THREE.TubeGeometry(new THREE.CatmullRomCurve3(rp,true), N, 0.09, 6, true),
+      new THREE.MeshLambertMaterial({color:0xd63e3e}));
+  }
+  g.add(rail(0.42), rail(-0.42));
+
+  const tieMat = new THREE.MeshLambertMaterial({color:0x5d371d});
+  const len = curve.getLength();
+  const ties = Math.floor(len/1.4);
+  for(let i=0;i<ties;i++){
+    const t=i/ties;
+    const tie = new THREE.Mesh(new THREE.BoxGeometry(1.05,0.08,0.2), tieMat);
+    tie.position.copy(curve.getPointAt(t));
+    tie.quaternion.setFromUnitVectors(new THREE.Vector3(0,0,1), curve.getTangentAt(t));
+    g.add(tie);
+  }
+  const supMat = new THREE.MeshLambertMaterial({color:0xfff6e3});
+  const sups = Math.max(14, Math.floor(len/4.5));
+  for(let i=0;i<sups;i++){
+    const p = curve.getPointAt(i/sups);
+    if(p.y>1.0){
+      const s = new THREE.Mesh(new THREE.CylinderGeometry(0.09,0.11,p.y,6), supMat);
+      s.position.set(p.x,p.y/2,p.z); g.add(s);
+    }
+  }
+  const cars=[];
+  const cols=[0xf2b632,0x1e8f8a,0x8fd3ff];
+  for(let i=0;i<3;i++){
+    const car = new THREE.Group();
+    const body = new THREE.Mesh(new THREE.BoxGeometry(0.7,0.45,1.05), new THREE.MeshLambertMaterial({color:cols[i]}));
+    body.position.y=0.32; body.castShadow=true;
+    car.add(body); g.add(car); cars.push(car);
+  }
+  scene.add(g);
+  const c = {curve, cars, group:g, s:Math.random(), speed:0.03, len, points:worldPts};
+  coasters.push(c);
+  return c;
+}
+
+function templateCoasterPoints(cx,cz){
+  const pts=[]; const R=8.5, H=[1.2,5.5,1.6,7.5,2.2,4.2,1.2,6.0];
+  for(let i=0;i<8;i++){
+    const a=i/8*Math.PI*2;
+    const rr = R*(0.85+0.3*((i%2)?1:0.6));
+    pts.push({x:cx+Math.cos(a)*rr, y:H[i], z:cz+Math.sin(a)*rr*0.75});
+  }
+  return pts;
+}
+
+function updateCoasters(dt){
+  coasters.forEach(c=>{
+    const grade = c.curve.getTangentAt(c.s%1).y;
+    // Kettenlift-Gefühl: bergauf langsam ziehen, bergab Schwerkraft
+    c.speed += (-grade*0.05 - (c.speed-0.05)*0.02) * dt*1.2;
+    c.speed = Math.max(0.016, Math.min(0.15, c.speed));
+    c.s = (c.s + c.speed*dt*(40/Math.max(c.len,20))) % 1;
+    c.cars.forEach((car,i)=>{
+      const t = (c.s - i*(1.3/c.len) + 1)%1;
+      const p = c.curve.getPointAt(t);
+      car.position.copy(p);
+      car.lookAt(p.clone().add(c.curve.getTangentAt(t)));
+    });
+  });
+}
+
+/* ============ Besucher ============ */
+const guests=[];
+const guestCols=[0xd63e3e,0x1e8f8a,0xf2b632,0x8fd3ff,0xffb0c9,0xffffff];
+function spawnGuest(){
+  const g = new THREE.Group();
+  const body = new THREE.Mesh(new THREE.CylinderGeometry(0.16,0.16,0.5,8),
+    new THREE.MeshLambertMaterial({color:guestCols[Math.floor(Math.random()*6)]}));
+  body.position.y=0.42; body.castShadow=true;
+  const head = new THREE.Mesh(new THREE.SphereGeometry(0.14,8,8), new THREE.MeshLambertMaterial({color:0xf3c9a0}));
+  head.position.y=0.82;
+  g.add(body,head);
+  g.position.set(0,0,PARK/2-1.5);
+  scene.add(g);
+  guests.push({mesh:g, target:pickTarget(), pause:0, bob:Math.random()*6});
+}
+function pickTarget(){
+  if(attractions.length && Math.random()<0.75){
+    const a = attractions[Math.floor(Math.random()*attractions.length)];
+    const ang=Math.random()*6.28, r=a.radius+1+Math.random()*1.5;
+    return new THREE.Vector3(a.pos.x+Math.cos(ang)*r,0,a.pos.z+Math.sin(ang)*r);
+  }
+  return new THREE.Vector3((Math.random()-0.5)*(PARK-8),0,(Math.random()-0.5)*(PARK-8));
+}
+function updateGuests(dt,t){
+  guests.forEach(gu=>{
+    if(gu.pause>0){gu.pause-=dt;return;}
+    const d = gu.target.clone().sub(gu.mesh.position); d.y=0;
+    if(d.length()<0.4){gu.pause=1.5+Math.random()*3; gu.target=pickTarget(); return;}
+    d.normalize();
+    gu.mesh.position.addScaledVector(d, dt*1.6);
+    gu.mesh.position.y = Math.abs(Math.sin(t*8+gu.bob))*0.05;
+    gu.mesh.rotation.y = Math.atan2(d.x,d.z);
+  });
+}
+
+/* ============ Wirtschaft, Katalog, UI ============ */
+const state = {money:1500, income:0};
+const CATALOG = [
+  {id:'carousel',icon:'🎠',name:'Karussell', price:300, income:12, make:makeCarousel},
+  {id:'ferris',  icon:'🎡',name:'Riesenrad', price:600, income:24, make:makeFerris},
+  {id:'drop',    icon:'🗼',name:'Freifallturm',price:500,income:20, make:makeDropTower},
+  {id:'teacups', icon:'☕',name:'Teetassen', price:350, income:14, make:makeTeacups},
+  {id:'snack',   icon:'🍿',name:'Imbiss',    price:150, income:6,  make:makeSnack},
+  {id:'tree',    icon:'🌳',name:'Baum',      price:20,  income:0,  make:()=>({mesh:makeTree(),radius:1.2})},
+  {id:'coaster', icon:'🎢',name:'Achterbahn',price:1000,income:60, make:null},
+  {id:'custom',  icon:'🛠️',name:'Eigene Bahn',price:0, income:0,  make:null, dyn:true},
+];
+let selected=null;
+
+const $ = id=>document.getElementById(id);
+const uiMoney=$('uiMoney'), uiGuests=$('uiGuests'), uiIncome=$('uiIncome');
+const toolbar=$('toolbar'), hint=$('hint'), toast=$('toast');
+const rideBtn=$('rideBtn'), exitRideBtn=$('exitRide'), speedo=$('speedo');
+const builderPanel=$('builderPanel');
+
+function fmt(n){return Math.floor(n).toLocaleString('de-DE');}
+function showToast(m){toast.textContent=m;toast.style.opacity=1;clearTimeout(toast._t);toast._t=setTimeout(()=>toast.style.opacity=0,2400);}
+function customCost(){ return 400 + trackPoints.length*90; }
+function refreshUI(){
+  uiMoney.textContent=fmt(state.money)+' €';
+  uiGuests.textContent=guests.length;
+  uiIncome.textContent='+'+fmt(state.income)+' €/s';
+  document.querySelectorAll('.tool').forEach(el=>{
+    const item=CATALOG.find(c=>c.id===el.dataset.id);
+    const price = item.dyn ? 400 : item.price;
+    el.classList.toggle('disabled', state.money<price);
+  });
+  rideBtn.style.display = coasters.length ? 'block' : 'none';
+}
+
+CATALOG.forEach(item=>{
+  const el=document.createElement('button');
+  el.className='tool'; el.dataset.id=item.id;
+  el.innerHTML=`<div class="icon">${item.icon}</div><div class="name">${item.name}</div><div class="price">${item.dyn?'ab 400':item.price} €</div>`;
+  el.addEventListener('click',()=>{
+    if(el.classList.contains('disabled')){showToast('Nicht genug Geld!');return;}
+    if(item.id==='custom'){ enterBuilder(); return; }
+    selected = (selected===item.id)?null:item.id;
+    document.querySelectorAll('.tool').forEach(t=>t.classList.toggle('active',t.dataset.id===selected));
+    hint.textContent = selected?`Tippe auf die Wiese, um „${item.name}“ zu bauen.`:'Wähle unten eine Attraktion.';
+  });
+  toolbar.appendChild(el);
+});
+
+/* ============ Strecken-Editor ============ */
+let builderMode=false;
+let trackPoints=[]; // Vector3 mit y = Höhe
+let previewGroup = new THREE.Group();
+scene.add(previewGroup);
+const heightSlider=$('heightSlider'), heightVal=$('heightVal'), finishBtn=$('finishTrack');
+
+heightSlider.addEventListener('input',()=>{
+  heightVal.textContent = parseFloat(heightSlider.value).toLocaleString('de-DE',{minimumFractionDigits:1})+' m';
+});
+
+function enterBuilder(){
+  builderMode=true; selected=null; trackPoints=[];
+  document.querySelectorAll('.tool').forEach(t=>t.classList.remove('active'));
+  toolbar.style.display='none';
+  builderPanel.style.display='block';
+  hint.textContent='Streckenpunkte auf der Wiese setzen – Höhe vorher am Regler wählen.';
+  refreshPreview();
+}
+function exitBuilder(){
+  builderMode=false;
+  toolbar.style.display='flex';
+  builderPanel.style.display='none';
+  while(previewGroup.children.length) previewGroup.remove(previewGroup.children[0]);
+  hint.textContent='Wähle unten eine Attraktion.';
+}
+$('cancelTrack').addEventListener('click', exitBuilder);
+$('undoPoint').addEventListener('click', ()=>{trackPoints.pop(); refreshPreview();});
+finishBtn.addEventListener('click', ()=>{
+  const cost = customCost();
+  if(trackPoints.length<4){showToast('Mindestens 4 Punkte!');return;}
+  if(state.money<cost){showToast('Nicht genug Geld! ('+fmt(cost)+' €)');return;}
+  const pts = trackPoints.map(p=>({x:p.x,y:p.y,z:p.z}));
+  const c = buildCoasterFromPoints(pts);
+  const inc = Math.round(30 + c.len*0.6);
+  state.money -= cost;
+  state.income += inc;
+  attractions.push({pos:new THREE.Vector3(pts[0].x,0,pts[0].z), radius:4, income:inc, saveType:'coasterCustom', savePts:pts});
+  showToast(`🎢 Deine Bahn ist fertig! +${inc} €/s – jetzt MITFAHREN!`);
+  exitBuilder(); refreshUI(); autoSave();
+});
+
+function refreshPreview(){
+  while(previewGroup.children.length) previewGroup.remove(previewGroup.children[0]);
+  const n = trackPoints.length;
+  finishBtn.disabled = n<4;
+  finishBtn.textContent = n<4 ? `Strecke bauen (${n}/4 Punkte)` : `Strecke bauen – ${fmt(customCost())} €`;
+  $('builderInfo').textContent = n<4
+    ? 'Tippe auf die Wiese, um Streckenpunkte zu setzen (mind. 4). Die Bahn wird automatisch zum Kreis geschlossen.'
+    : `${n} Punkte gesetzt. Du kannst weitere setzen oder jetzt bauen.`;
+  // Masten + Kugeln
+  trackPoints.forEach(p=>{
+    const pole = new THREE.Mesh(new THREE.CylinderGeometry(0.06,0.06,p.y,6),
+      new THREE.MeshBasicMaterial({color:0xf2b632, transparent:true, opacity:0.7}));
+    pole.position.set(p.x,p.y/2,p.z);
+    const ball = new THREE.Mesh(new THREE.SphereGeometry(0.28,10,10), new THREE.MeshBasicMaterial({color:0xd63e3e}));
+    ball.position.copy(p);
+    previewGroup.add(pole,ball);
+  });
+  if(n>=2){
+    const curve = new THREE.CatmullRomCurve3(trackPoints.map(p=>p.clone()), n>=4, 'catmullrom', 0.55);
+    const geo = new THREE.BufferGeometry().setFromPoints(curve.getPoints(120));
+    previewGroup.add(new THREE.Line(geo, new THREE.LineBasicMaterial({color:0xffffff})));
+  }
+}
+
+/* ============ Platzieren ============ */
+const ray = new THREE.Raycaster(), ndc = new THREE.Vector2();
+function groundHit(cx,cy){
+  ndc.x=(cx/innerWidth)*2-1; ndc.y=-(cy/innerHeight)*2+1;
+  ray.setFromCamera(ndc,camera);
+  const h = ray.intersectObject(ground)[0];
+  return h?h.point:null;
+}
+function handleTap(cx,cy){
+  const p = groundHit(cx,cy);
+  if(!p) return;
+  if(builderMode){
+    if(Math.abs(p.x)>PARK/2-2||Math.abs(p.z)>PARK/2-2){showToast('Zu nah am Zaun!');return;}
+    trackPoints.push(new THREE.Vector3(p.x, parseFloat(heightSlider.value), p.z));
+    refreshPreview();
+    return;
+  }
+  if(!selected) return;
+  const item = CATALOG.find(c=>c.id===selected);
+  if(state.money<item.price){showToast('Nicht genug Geld!');return;}
+  const margin = item.id==='coaster'?13:4;
+  if(Math.abs(p.x)>PARK/2-margin||Math.abs(p.z)>PARK/2-margin){showToast('Zu nah am Zaun!');return;}
+  const newR = item.id==='coaster'?11:3;
+  for(const a of attractions){
+    if(p.distanceTo(a.pos)<a.radius+newR-1.5){showToast('Hier ist kein Platz!');return;}
+  }
+  placeItem(item, p, true);
+  selected=null;
+  document.querySelectorAll('.tool').forEach(t=>t.classList.remove('active'));
+  hint.textContent='Attraktionen bringen Geld und locken Besucher an.';
+}
+function placeItem(item, p, pay, ry){
+  let radius, savePts=null;
+  if(item.id==='coaster'){
+    const pts = templateCoasterPoints(p.x,p.z);
+    buildCoasterFromPoints(pts);
+    radius=11; savePts=pts;
+    showToast('🎢 Achterbahn gebaut – drück auf MITFAHREN!');
+  } else {
+    const made = item.make();
+    made.mesh.position.set(p.x,0,p.z);
+    made.mesh.rotation.y = (ry!==undefined)?ry:Math.random()*6.28;
+    scene.add(made.mesh);
+    radius = made.radius;
+    if(pay && item.id!=='tree') showToast(`${item.icon} ${item.name} eröffnet!`);
+  }
+  if(pay) state.money -= item.price;
+  state.income += item.income;
+  attractions.push({pos:new THREE.Vector3(p.x,0,p.z), radius, income:item.income,
+    saveType:item.id, savePts, saveRy:ry});
+  refreshUI();
+  if(pay) autoSave();
+}
+
+/* ============ Eingaben ============ */
+let dragging=false, movedFlag=false, px=0, py=0, pinchDist=0;
+canvas.addEventListener('pointerdown',e=>{dragging=true;movedFlag=false;px=e.clientX;py=e.clientY;canvas.setPointerCapture(e.pointerId);});
+canvas.addEventListener('pointermove',e=>{
+  if(!dragging||riding)return;
+  const dx=e.clientX-px, dy=e.clientY-py;
+  if(Math.abs(dx)+Math.abs(dy)>4)movedFlag=true;
+  cam.theta-=dx*0.006;
+  cam.phi=Math.max(0.15,Math.min(1.35,cam.phi-dy*0.005));
+  px=e.clientX;py=e.clientY;
+});
+canvas.addEventListener('pointerup',e=>{dragging=false;if(!movedFlag&&!riding)handleTap(e.clientX,e.clientY);});
+canvas.addEventListener('wheel',e=>{if(!riding)cam.dist=Math.max(12,Math.min(100,cam.dist+e.deltaY*0.04));},{passive:true});
+canvas.addEventListener('touchmove',e=>{
+  if(e.touches.length===2&&!riding){
+    const d=Math.hypot(e.touches[0].clientX-e.touches[1].clientX,e.touches[0].clientY-e.touches[1].clientY);
+    if(pinchDist)cam.dist=Math.max(12,Math.min(100,cam.dist-(d-pinchDist)*0.08));
+    pinchDist=d;dragging=false;
+  }
+},{passive:true});
+canvas.addEventListener('touchend',()=>{pinchDist=0;});
+
+/* ============ Mitfahr-Modus ============ */
+let riding=false, rideCoaster=null;
+rideBtn.addEventListener('click',()=>{
+  if(!coasters.length)return;
+  rideCoaster = coasters[coasters.length-1]; // neueste Bahn
+  riding=true;
+  rideBtn.style.display='none';
+  exitRideBtn.style.display='block';
+  speedo.style.display='block';
+  toolbar.style.display='none';
+  builderPanel.style.display='none';
+  hint.style.opacity=0;
+  document.getElementById('saveBtn').style.display='none';
+});
+exitRideBtn.addEventListener('click',()=>{
+  riding=false; rideCoaster=null;
+  exitRideBtn.style.display='none';
+  speedo.style.display='none';
+  toolbar.style.display='flex';
+  hint.style.opacity=1;
+  document.getElementById('saveBtn').style.display='block';
+  refreshUI();
+});
+function updateRideCam(){
+  const c=rideCoaster; if(!c)return;
+  const t=c.s%1;
+  const p=c.curve.getPointAt(t);
+  const tang=c.curve.getTangentAt(t);
+  camera.position.set(p.x,p.y+0.75,p.z);
+  const look=p.clone().add(tang.clone().multiplyScalar(4)); look.y+=0.5;
+  camera.lookAt(look);
+  const kmh = Math.round(c.speed*(40/Math.max(c.len,20))*c.len*3.6*3);
+  speedo.textContent = kmh+' km/h';
+}
+
+/* ============ Speichern & Laden (Artifact-Storage) ============ */
+async function saveGame(silent){
+  const data = {
+    money:state.money, income:state.income,
+    items: attractions.map(a=>({t:a.saveType, x:a.pos.x, z:a.pos.z, ry:a.saveRy, pts:a.savePts||null, inc:a.income}))
+  };
+  try{
+    if(window.storage && window.storage.set){
+      await window.storage.set('funpark-save', JSON.stringify(data));
+      if(!silent) showToast('💾 Park gespeichert!');
+      return true;
+    }
+  }catch(err){ console.error('Speichern fehlgeschlagen', err); }
+  if(!silent) showToast('Speichern hier nicht möglich – Fortschritt gilt nur für diese Sitzung.');
+  return false;
+}
+let saveTimer=null;
+function autoSave(){ clearTimeout(saveTimer); saveTimer=setTimeout(()=>saveGame(true), 1500); }
+document.getElementById('saveBtn').addEventListener('click',()=>saveGame(false));
+
+async function loadGame(){
+  try{
+    if(!(window.storage && window.storage.get)) return null;
+    const r = await window.storage.get('funpark-save');
+    return r ? JSON.parse(r.value) : null;
+  }catch(err){ return null; }
+}
+function restore(data){
+  state.money = data.money; state.income = 0;
+  data.items.forEach(it=>{
+    if(it.t==='coaster'||it.t==='coasterCustom'){
+      buildCoasterFromPoints(it.pts);
+      attractions.push({pos:new THREE.Vector3(it.x,0,it.z), radius:it.t==='coaster'?11:4,
+        income:it.inc, saveType:it.t, savePts:it.pts});
+      state.income += it.inc;
+    } else {
+      const item = CATALOG.find(c=>c.id===it.t);
+      if(item && item.make){
+        const made = item.make();
+        made.mesh.position.set(it.x,0,it.z);
+        made.mesh.rotation.y = it.ry||0;
+        scene.add(made.mesh);
+        attractions.push({pos:new THREE.Vector3(it.x,0,it.z), radius:made.radius,
+          income:it.inc, saveType:it.t, saveRy:it.ry});
+        state.income += it.inc;
+      }
+    }
+  });
+  refreshUI();
+}
+
+/* ============ Schleife & Start ============ */
+let last=performance.now()/1000, incomeAcc=0, guestTimer=0, started=false;
+function resize(){renderer.setSize(innerWidth,innerHeight,false);camera.aspect=innerWidth/innerHeight;camera.updateProjectionMatrix();}
+addEventListener('resize',resize); resize();
+
+function loop(){
+  requestAnimationFrame(loop);
+  const now=performance.now()/1000;
+  const dt=Math.min(0.05,now-last); last=now;
+  if(started){
+    animated.forEach(a=>a.update(dt,now));
+    updateCoasters(dt);
+    updateGuests(dt,now);
+    incomeAcc+=state.income*dt;
+    if(incomeAcc>=1){state.money+=Math.floor(incomeAcc);incomeAcc%=1;refreshUI();}
+    guestTimer+=dt;
+    const maxG=Math.min(44, 3+attractions.filter(a=>a.income>0).length*5);
+    if(guestTimer>2&&guests.length<maxG){guestTimer=0;spawnGuest();refreshUI();}
+  }
+  if(riding)updateRideCam();else applyCamera();
+  renderer.render(scene,camera);
+}
+loop();
+
+(async function init(){
+  const save = await loadGame();
+  const btns = document.getElementById('splashBtns');
+  if(save && save.items && save.items.length){
+    const cont = document.createElement('button');
+    cont.className='startB alt'; cont.textContent='▶ Weiter spielen';
+    cont.addEventListener('click',()=>{
+      restore(save);
+      document.getElementById('splash').style.display='none';
+      started=true; refreshUI();
+      showToast('Willkommen zurück in deinem Park!');
+    });
+    btns.prepend(cont);
+  }
+  document.getElementById('startNew').addEventListener('click',()=>{
+    document.getElementById('splash').style.display='none';
+    started=true; refreshUI();
+  });
+  refreshUI();
+})();
+})();
+</script>
+</body>
+</html>
